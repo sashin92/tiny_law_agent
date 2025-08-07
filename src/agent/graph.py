@@ -8,14 +8,14 @@ from src.agent.configuration import Configuration
 from src.agent.graph_component import check_question, retrieval_node, call_rag_model
 
 
-async def is_ragable(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
+async def is_ragable(state: GraphState, config: RunnableConfig) -> str:
     if state.answer == "<answer>yes</answer>":
         return "rag"
     return "normal"
 
 
 graph = (
-    StateGraph(GraphState, config_schema=Configuration)
+    StateGraph(GraphState)
     .add_node(check_question)
     .add_node(retrieval_node)
     .add_node(call_rag_model)
