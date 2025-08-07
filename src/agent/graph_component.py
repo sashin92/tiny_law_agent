@@ -9,11 +9,18 @@ from langgraph.graph import MessagesState
 from src.agent.state import GraphState
 from src.util.qdrant_handler import QdrantHandler
 from src.agent.prompt import call_rag_system_prompt, check_question_system_prompt
+from langchain_core.messages import AIMessage
 
-async def start_node(state: MessagesState) -> Dict[str, Any]:
+async def start_node(state: MessagesState, config: RunnableConfig) -> Dict[str, Any]:
     return {
-        "question": state["messages"][-1]
+        "question": state["messages"][-1].content,
+        "context": "",
+        "answer": ""
     }
+    
+async def end_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
+    state["messages"] += [AIMessage(content=state["answer"])]
+    return state
 
 async def call_rag_model(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     model = ChatOpenAI(
@@ -34,16 +41,16 @@ async def call_rag_model(state: GraphState, config: RunnableConfig) -> Dict[str,
     )
     chain = prompt | model | StrOutputParser()
     response = await chain.ainvoke(
-        {"question": state.question, "context": state.context}
+        {"question": state["question"], "context": state["context"]}
     )
-    state.answer=response
+    state["answer"]=response
     return state
 
 async def retrieval_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     # TODO: Question으로 검색 후 결과값 context에 저장, state 리턴
     qdrant = QdrantHandler()
     
-    results = await qdrant.search_text("law_collection", state.question, limit=20)
+    results = await qdrant.search_text("law_collection", state["question"], limit=20)
     context_parts = []
     for i, result in enumerate(results, 1):
         source = result['payload'].get('source', 'N/A')
@@ -52,7 +59,7 @@ async def retrieval_node(state: GraphState, config: RunnableConfig) -> Dict[str,
         formatted_str = f"<document><content>{content}</content><metadata>, page: {page + 1}, source: {source}</metadata></document>"
         context_parts.append(formatted_str)
     
-    state.context = "\n\n".join(context_parts)
+    state["context"] = "\n\n".join(context_parts)
     return state
 
 async def check_question(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
@@ -74,7 +81,7 @@ async def check_question(state: GraphState, config: RunnableConfig) -> Dict[str,
     )
     chain = prompt | model | StrOutputParser()
     response = await chain.ainvoke(
-        {"question": state.question}
+        {"question": state["question"]}
     )
-    state.answer=response
+    state["answer"]=response
     return state
