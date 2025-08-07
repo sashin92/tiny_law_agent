@@ -4,10 +4,16 @@ from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
+from langgraph.graph import MessagesState
 
 from src.agent.state import GraphState
 from src.util.qdrant_handler import QdrantHandler
 from src.agent.prompt import call_rag_system_prompt, check_question_system_prompt
+
+async def start_node(state: MessagesState) -> Dict[str, Any]:
+    return {
+        "question": state["messages"][-1]
+    }
 
 async def call_rag_model(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     model = ChatOpenAI(

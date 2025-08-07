@@ -6,3 +6,4 @@ class GraphState:
     question: str
     context: str = ""
     answer: str = ""
+    
