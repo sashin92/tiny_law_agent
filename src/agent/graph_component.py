@@ -11,18 +11,13 @@ from src.util.qdrant_handler import QdrantHandler
 from src.agent.prompt import call_rag_system_prompt, check_question_system_prompt
 from langchain_core.messages import AIMessage
 
-async def start_node(state: MessagesState, config: RunnableConfig) -> Dict[str, Any]:
-    return {
-        "question": state["messages"][-1].content,
-        "context": "",
-        "answer": ""
-    }
-    
 async def end_node(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
     state["messages"] += [AIMessage(content=state["answer"])]
     return state
 
 async def call_rag_model(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
+    question = state["messages"][-1].content
+    
     model = ChatOpenAI(
             temperature=0,
             model="gpt-4.1-mini"
@@ -41,7 +36,7 @@ async def call_rag_model(state: GraphState, config: RunnableConfig) -> Dict[str,
     )
     chain = prompt | model | StrOutputParser()
     response = await chain.ainvoke(
-        {"question": state["question"], "context": state["context"]}
+        {"question": question, "context": state["context"]}
     )
     state["answer"]=response
     return state
@@ -50,7 +45,7 @@ async def retrieval_node(state: GraphState, config: RunnableConfig) -> Dict[str,
     # TODO: Question으로 검색 후 결과값 context에 저장, state 리턴
     qdrant = QdrantHandler()
     
-    results = await qdrant.search_text("law_collection", state["question"], limit=20)
+    results = await qdrant.search_text("law_collection", state["question"][0]["text"], limit=20)
     context_parts = []
     for i, result in enumerate(results, 1):
         source = result['payload'].get('source', 'N/A')
@@ -63,6 +58,9 @@ async def retrieval_node(state: GraphState, config: RunnableConfig) -> Dict[str,
     return state
 
 async def check_question(state: GraphState, config: RunnableConfig) -> Dict[str, Any]:
+    question = state["messages"][-1].content
+    state["question"] = question
+    
     model = ChatOpenAI(
         temperature=0,
         model="gpt-4.1-mini"
@@ -81,7 +79,7 @@ async def check_question(state: GraphState, config: RunnableConfig) -> Dict[str,
     )
     chain = prompt | model | StrOutputParser()
     response = await chain.ainvoke(
-        {"question": state["question"]}
+        {"question": question}
     )
     state["answer"]=response
     return state
